@@ -1,34 +1,61 @@
 import pandas as pd
 from torch.utils.data import Dataset
-from transformers import AutoTokenizer
 import os
 import torch
 import re
+import random
 
 class PresidentialDataset(Dataset):
     """
-    A PyTorch Dataset class for handling and processing Donald Trump's speeches.
-
-    Attributes:
-        DATASET_DIR (str): Directory where the dataset is stored.
-        tokenizer (AutoTokenizer): Tokenizer for encoding text data.
-        dataset (DataFrame): DataFrame containing the speeches and their tokenized forms.
-        seq_len (int): Sequence length for tokenized data.
+    An IterableDataset for next token prediction training.
+    Generates (input_sequence, next_token) pairs infinitely.
     """
-    DATASET_DIR = "/Users/lucassoffer/Documents/Develop/cursor_ai/datasets/trump_speeches"
+    DATASET_DIR = "/Users/lucassoffer/Documents/Develop/cursor_ai/datasets/speeches"
 
-    def __init__(self, tokenizer_name="meta-llama/Llama-3.2-1B", seq_len=512):
-        if not os.path.exists(os.path.join(self.DATASET_DIR, "data.csv")):
-            self.download_dataset()
-
-        self.dataset = pd.read_csv(os.path.join(self.DATASET_DIR, "data.csv"))
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        self.dataset['tokens'] = self.dataset['text'].apply(lambda text: self.tokenizer.encode(text, add_special_tokens=False))
-        self.token_indexer = self.dataset['tokens'].apply(len).cumsum().values
+    def __init__(self, tokenizer, dataset, seq_len=512, mask_prob=0.1):
+        self.tokenizer = tokenizer
+        self.dataset = dataset
         self.seq_len = seq_len
-        if self.tokenizer.pad_token_id is None:
-            self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.mask_prob = mask_prob
+        
 
+        # Tokenize all texts
+        self.dataset['tokens'] = self.dataset['text'].apply(
+            lambda text: self.tokenizer.encode(text)
+        )
+
+        self.dataset['num_samples'] = self.dataset['tokens'].apply(
+            lambda t: len(t) - self.seq_len
+        )
+        
+
+    def __len__(self):
+        # Return the number of samples in the dataset
+        return self.dataset['num_samples'].sum()
+
+
+    def __getitem__(self, idx):
+        # Find the text index and position within the text
+        cumulative_tokens = self.dataset['num_samples'].cumsum()
+        text_idx = (cumulative_tokens > idx).idxmax()
+        token_idx = idx - (cumulative_tokens[text_idx - 1] if text_idx > 0 else 0)
+        
+        # Get the tokens for the selected text
+        text_tokens = self.dataset.iloc[text_idx]['tokens']
+
+        assert token_idx < len(text_tokens) - self.seq_len, "Index out of range for token sequence."
+        
+        # Create input-output pair
+        input_sequence = text_tokens[token_idx:token_idx + self.seq_len]
+        next_tokens = text_tokens[(token_idx + 1):(token_idx + self.seq_len + 1)]        
+        return torch.tensor(input_sequence), torch.tensor(next_tokens, dtype=torch.long)
+
+    @classmethod
+    def get_text(cls):
+        if not os.path.exists(os.path.join(cls.DATASET_DIR, "data.csv")):
+            cls.download_dataset()
+        dataset = pd.read_csv(os.path.join(cls.DATASET_DIR, "data.csv"))
+        return dataset
 
 
     @classmethod
@@ -75,36 +102,3 @@ class PresidentialDataset(Dataset):
         dataset.to_csv(os.path.join(cls.DATASET_DIR, "data.csv"))
 
         print("Dataset downloaded and moved to", dataset_path)
-
-    def __len__(self):
-        return self.token_indexer[-1]
-
-    def __getitem__(self, idx):
-        text_idx = next((i for i, val in enumerate(self.token_indexer) if val >= idx), None)
-        if text_idx is None:
-            text_idx = len(self.token_indexer) - 1
-        elif self.token_indexer[text_idx] > idx:
-            text_idx = 0
-
-        token_idx = idx - self.token_indexer[text_idx] + 1
-        text_tokens = self.dataset.iloc[text_idx]['tokens']
-        seq = text_tokens[max(0, token_idx-self.seq_len):token_idx]
-        if len(seq) < self.seq_len:
-            seq = torch.cat([torch.tensor([self.tokenizer.pad_token_id] * (self.seq_len - len(seq))), torch.tensor(seq)])
-        return seq
-
-
-if __name__ == "__main__":
-    # Instantiate the dataset
-    trump_speeches = TrumpSpeeches()
-
-    # Print the length of the dataset
-    print(f"Number of speeches in the dataset: {len(trump_speeches)}")
-
-    # Print a sample speech
-    sample_idx = 0
-    sample_speech = trump_speeches[sample_idx]
-    print(f"Sample speech at index {sample_idx}:")
-    print(sample_speech)
-    total_words = sum(len(speech['text'].split()) for speech in trump_speeches)
-    print(f"Total number of words in the dataset: {total_words}")

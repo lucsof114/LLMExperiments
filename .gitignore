@@ -1,3 +1,5 @@
 __pycache__/
 cursor_venv/
 speeches/
+*.pth
+*.json

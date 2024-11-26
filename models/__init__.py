@@ -4,4 +4,4 @@ from .models import PresidentialModel, \
                     PresidentialAttention, \
                     PresidentialMLP
 
-from .tokenizer import CustomTokenizer
+from .tokenizer import TokenMapper
