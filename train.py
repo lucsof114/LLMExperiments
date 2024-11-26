@@ -29,9 +29,9 @@ def train():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # Initialize tokenizer and dataset
-    token_mapper = TokenMapper.load('token_mapper.pth')
-    # token_mapper = TokenMapper.init_from_dataset(PresidentialDataset.get_text(), CONFIG['pretrained_model_name'])
-    # token_mapper.save('token_mapper.pth')
+    # token_mapper = TokenMapper.load('token_mapper.pth')
+    token_mapper = TokenMapper.init_from_dataset(PresidentialDataset.get_text(), CONFIG['pretrained_model_name'])
+    token_mapper.save('token_mapper.pth')
 
     dataset = PresidentialDataset(
         tokenizer=token_mapper,

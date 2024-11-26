@@ -3,3 +3,6 @@ cursor_venv/
 speeches/
 *.pth
 *.json
+*/trained/*
+*.DS_Store
+*.egg-info/

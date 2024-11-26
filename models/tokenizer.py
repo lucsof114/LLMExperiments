@@ -24,8 +24,8 @@ class TokenMapper:
         self.embeddings = embeddings
 
     @classmethod
-    def init_from_dataset(cls, dataset, pretrained_model_name="meta-llama/Llama-3.2-1B"):
-        tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+    def init_from_dataset(cls, dataset, tokenizer_path="models/trained/tokenizer"):
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 
         if tokenizer.pad_token_id is None:
             tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -34,7 +34,7 @@ class TokenMapper:
         token_id_map = {original_id: new_id for new_id, original_id in enumerate(used_tokens)}
         reverse_token_id_map = {v: k for k, v in token_id_map.items()}
 
-        model = AutoModel.from_pretrained(pretrained_model_name)
+        model = AutoModel.from_pretrained(tokenizer_path)
         embeddings = TokenEmbeddings(tokenizer.vocab_size, model.config.hidden_size)
         original_embeddings =  model.get_input_embeddings().weight.data
         for original_id, new_id in  token_id_map.items():
@@ -49,16 +49,15 @@ class TokenMapper:
         return self.embeddings.embed_dim
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path, tokenizer_path="models/trained/tokenizer"):
         # Load the entire dictionary from the .pth file
         checkpoint = torch.load(path)
         
-        # Extract the configuration and state dictionary
+        # Load the tokenizer state directly from the saved state
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        
         token_id_map = checkpoint['token_id_map']
         reverse_token_id_map = checkpoint['reverse_token_id_map']
-        pretrained_model_name = checkpoint['pretrained_model_name']
-        
-        tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
         embeddings = TokenEmbeddings(tokenizer.vocab_size, checkpoint['embed_dim'])
         
         # Load the model's state dictionary
@@ -74,7 +73,6 @@ class TokenMapper:
             'token_id_map': self.token_id_map,
             'reverse_token_id_map': self.reverse_token_id_map,
             'embed_dim': self.embed_dim,
-            'pretrained_model_name': self.tokenizer.name_or_path
         }
         
         torch.save(checkpoint, path)

@@ -3,14 +3,13 @@ from torch.utils.data import Dataset
 import os
 import torch
 import re
-import random
 
 class PresidentialDataset(Dataset):
     """
     An IterableDataset for next token prediction training.
     Generates (input_sequence, next_token) pairs infinitely.
     """
-    DATASET_DIR = "/Users/lucassoffer/Documents/Develop/cursor_ai/datasets/speeches"
+    DATASET_DIR = "datasets/speeches"
 
     def __init__(self, tokenizer, dataset, seq_len=512, mask_prob=0.1):
         self.tokenizer = tokenizer
